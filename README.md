@@ -1,6 +1,6 @@
-# doc2md — Word → Markdown 转换工具
+# doc2md — 告别复杂依赖，用纯 Python 将 Word 精准转为 Markdown ⚡
 
-将 `.docx` 文件转换为结构化的 Markdown 文本。
+零第三方转换依赖，直接解析 `.docx` XML，将 Word 文档精准转为结构化 Markdown。提供命令行与 Web 双界面，开箱即用。
 
 ## 功能特性
 
@@ -99,63 +99,6 @@ md = convert_word_to_markdown("input.docx")
 print(md)
 ```
 
-## 项目结构
-
-```
-word2md/
-├── pyproject.toml              # 项目配置 & 依赖
-├── requirements.txt            # pip 依赖
-├── README.md                   # 本文件
-├── UPLOAD_STORAGE_GUIDE.md     # 文件存储和清理策略说明（详细）
-├── .gitignore
-├── uploads/                    # ⬅️ 用户上传的原始文件（按会话 ID 组织）
-├── converted/                  # ⬅️ 转换生成的文件（按会话 ID 组织）
-├── templates/
-│   └── index.html              # Web 前端页面（预览 + 下载）
-└── converter/
-    ├── __init__.py
-    ├── cli.py                  # CLI 入口 (argparse)
-    ├── webapp.py               # Flask Web 服务
-    ├── word2md.py              # Word 转换（直接解析 .docx XML）
-    └── numbering.py            # Word 编号/样式/大纲级别解析
-```
-
-### 文件存储说明
-
-- **uploads/** — 存放用户上传的原始 .docx 文件
-  - 按 `{session_id}/` 子目录组织，每个转换任务独立
-  - 10 分钟后自动清理（可配置 `_RESULT_TTL`）
-
-- **converted/** — 存放转换生成的 markdown 和提取的图片
-  - 按 `{session_id}/{filename}/` 子目录组织
-  - 与上传文件同步清理
-
-详见 [UPLOAD_STORAGE_GUIDE.md](UPLOAD_STORAGE_GUIDE.md)（含调试技巧、环境变量配置、清理策略）
-
-## 技术方案说明
-
-### Word (.docx) 转换流程
-
-```
-.docx (ZIP)  ──解压──▶  XML (document.xml, styles.xml, numbering.xml)
-                              │
-                              ├─ outlineLvl → 标题级别 (H1–H6)
-                              ├─ numPr → 自动编号 ("第一章"、"1.1")
-                              ├─ rPr → 加粗/斜体/删除线
-                              ├─ hyperlink + rels → 超链接
-                              ├─ drawing + media → 图片
-                              └─ tbl → 表格
-                              │
-                              ▼
-                          Markdown
-```
-
-- 直接解析 .docx 的 XML 结构，不依赖 mammoth 或 markdownify
-- 标题级别来源于每个段落的 `outlineLvl` 属性（支持样式继承链 `basedOn`）
-- 自动编号来源于 `numPr`（numId + ilvl），通过 numbering.xml 解析编号格式
-- 支持中文编号（"第一章"、"一、"）、罗马数字、字母等格式
-- 封面/目录/摘要检测基于 XML 属性（分页符、TOC 样式/SDT/域代码、标题关键词）
-
 ## Web 服务
 
 ### 启动服务
@@ -185,10 +128,6 @@ python -m converter.webapp
 - **智能下载**：
   - 单文件且无图片 → 直接下载 `.md` 文件
   - 含图片或多文件 → 打包为 `.zip` 下载
-- **文件管理**：
-  - 上传文件自动保存到 `uploads/{session_id}/` 便于调试
-  - 转换结果保存到 `converted/{session_id}/` 便于查看
-  - 10 分钟后自动清理过期文件
 
 ### API 接口
 
@@ -237,27 +176,71 @@ curl http://localhost:5000/health
 | `before_toc` | 移除目录及其之前的内容 |
 | `before_toc_keep_abstract` | 移除目录及之前内容，但保留中英文摘要 |
 
-## 文件存储 & 清理策略
+## 文件存储与清理
 
-上传和转换的文件自动保存在项目目录下的 `uploads/` 和 `converted/` 目录，便于测试和调试：
+Web 服务运行时，上传和转换的文件自动保存在项目目录下：
 
-- **uploads/** — 存放用户上传的原始文件
-- **converted/** — 存放转换生成的 markdown 和图片
+- **uploads/{session_id}/** — 用户上传的原始 .docx 文件
+- **converted/{session_id}/{filename}/** — 转换生成的 Markdown 和提取的图片
 
 ### 自动清理
 
-后台线程每 60 秒检查一次，自动清理 **> 10 分钟前** 创建的文件（可配置 `_RESULT_TTL`）。
+后台线程每 60 秒检查一次，自动清理 **超过 10 分钟** 的文件（可通过 `_RESULT_TTL` 配置）。
 
 ### 手动清理
 
 ```bash
-# 立即清理过期文件
 curl -X POST http://localhost:5000/cleanup
 ```
 
-### 调试用途
+### 自定义存储路径
 
-若需保留文件用于调试，详见 [UPLOAD_STORAGE_GUIDE.md](UPLOAD_STORAGE_GUIDE.md)（含完整的调试技巧和环境变量配置说明）。
+通过环境变量可自定义文件存储位置，详见 [UPLOAD_STORAGE_GUIDE.md](UPLOAD_STORAGE_GUIDE.md)。
+
+## 项目结构
+
+```
+doc2md/
+├── pyproject.toml              # 项目配置 & 依赖
+├── requirements.txt            # pip 依赖
+├── README.md
+├── UPLOAD_STORAGE_GUIDE.md     # 文件存储和清理策略说明
+├── .gitignore
+├── templates/
+│   └── index.html              # Web 前端页面（预览 + 下载）
+└── converter/
+    ├── __init__.py
+    ├── cli.py                  # CLI 入口 (argparse)
+    ├── webapp.py               # Flask Web 服务
+    ├── word2md.py              # Word 转换（直接解析 .docx XML）
+    └── numbering.py            # Word 编号/样式/大纲级别解析
+```
+
+> 运行时会自动创建 `uploads/` 和 `converted/` 目录用于临时文件存储，已通过 `.gitignore` 排除。
+
+## 技术方案说明
+
+### Word (.docx) 转换流程
+
+```
+.docx (ZIP)  ──解压──▶  XML (document.xml, styles.xml, numbering.xml)
+                              │
+                              ├─ outlineLvl → 标题级别 (H1–H6)
+                              ├─ numPr → 自动编号 ("第一章"、"1.1")
+                              ├─ rPr → 加粗/斜体/删除线
+                              ├─ hyperlink + rels → 超链接
+                              ├─ drawing + media → 图片
+                              └─ tbl → 表格
+                              │
+                              ▼
+                          Markdown
+```
+
+- 直接解析 .docx 的 XML 结构，不依赖 mammoth 或 markdownify
+- 标题级别来源于每个段落的 `outlineLvl` 属性（支持样式继承链 `basedOn`）
+- 自动编号来源于 `numPr`（numId + ilvl），通过 numbering.xml 解析编号格式
+- 支持中文编号（"第一章"、"一、"）、罗马数字、字母等格式
+- 封面/目录/摘要检测基于 XML 属性（分页符、TOC 样式/SDT/域代码、标题关键词）
 
 ## License
 
