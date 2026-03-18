@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>doc2md — Word 转 Markdown</title>
+    <!-- marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --success: #059669;
+            --danger: #dc2626;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --radius: 12px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 960px;
+            width: 100%;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        header p {
+            color: var(--text-muted);
+            margin-top: 8px;
+            font-size: 0.95rem;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 28px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+
+        /* ── Drop Zone ── */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 48px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--bg);
+        }
+
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: var(--primary);
+            background: #eef2ff;
+        }
+
+        .drop-zone-icon { font-size: 2.5rem; margin-bottom: 12px; }
+        .drop-zone-text { color: var(--text-muted); font-size: 0.95rem; }
+        .drop-zone-text strong { color: var(--primary); cursor: pointer; }
+        .drop-zone-hint { font-size: 0.8rem; color: var(--text-muted); margin-top: 8px; }
+
+        /* ── File List ── */
+        .file-list { margin-top: 16px; }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            background: var(--bg);
+            font-size: 0.9rem;
+        }
+
+        .file-item .file-info { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .file-item .file-icon { font-size: 1.3rem; flex-shrink: 0; }
+        .file-item .file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .file-item .file-size { color: var(--text-muted); font-size: 0.8rem; flex-shrink: 0; }
+
+        .file-item .remove-btn {
+            background: none; border: none; color: var(--danger);
+            cursor: pointer; font-size: 1.1rem; padding: 2px 6px;
+            border-radius: 4px; flex-shrink: 0;
+        }
+        .file-item .remove-btn:hover { background: #fef2f2; }
+
+        /* ── Options ── */
+        .options-section { margin-top: 20px; }
+
+        .options-section h3 {
+            font-size: 0.9rem; font-weight: 600; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;
+        }
+
+        .option-group { display: none; margin-bottom: 16px; }
+        .option-group.visible { display: block; }
+
+        .option-group label {
+            font-size: 0.85rem; font-weight: 600; color: var(--text);
+            display: block; margin-bottom: 4px;
+        }
+
+        .option-group .hint { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 6px; }
+
+        .option-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .option-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); }
+        .option-row span { font-size: 0.9rem; }
+
+        input[type="text"] {
+            width: 100%; padding: 8px 12px; border: 1px solid var(--border);
+            border-radius: 8px; font-size: 0.9rem; outline: none; transition: border-color 0.2s;
+        }
+        input[type="text"]:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+
+        /* ── Format Tags ── */
+        .format-tags { display: flex; gap: 8px; margin-bottom: 12px; }
+        .format-tag { font-size: 0.75rem; padding: 3px 10px; border-radius: 20px; font-weight: 600; }
+        .format-tag.docx { background: #dbeafe; color: #1e40af; }
+
+
+        /* ── Button ── */
+        .convert-btn {
+            width: 100%; padding: 14px; background: var(--primary);
+            color: #fff; border: none; border-radius: var(--radius);
+            font-size: 1rem; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; margin-top: 8px;
+        }
+        .convert-btn:hover:not(:disabled) {
+            background: var(--primary-hover); transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(79,70,229,0.3);
+        }
+        .convert-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ── Progress ── */
+        .progress-bar { display: none; margin-top: 16px; }
+        .progress-bar.visible { display: block; }
+        .progress-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+        .progress-fill {
+            height: 100%; background: var(--primary); border-radius: 3px;
+            width: 0%; transition: width 0.3s;
+            animation: indeterminate 1.5s infinite linear;
+        }
+
+        @keyframes indeterminate {
+            0% { margin-left: 0; width: 30%; }
+            50% { margin-left: 40%; width: 40%; }
+            100% { margin-left: 100%; width: 30%; }
+        }
+
+        .progress-text { text-align: center; font-size: 0.85rem; color: var(--text-muted); margin-top: 8px; }
+
+        /* ── Status ── */
+        .status-message {
+            display: none; padding: 12px 16px; border-radius: 8px;
+            font-size: 0.9rem; margin-top: 16px;
+        }
+        .status-message.success { display: block; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+        .status-message.error { display: block; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+        /* ── Preview Section ── */
+        .preview-section {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .preview-section.visible {
+            display: block;
+        }
+
+        .preview-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .preview-header h2 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .preview-tabs {
+            display: flex;
+            gap: 0;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .preview-tab {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            background: var(--bg);
+            border: none;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: all 0.15s;
+            border-right: 1px solid var(--border);
+        }
+
+        .preview-tab:last-child { border-right: none; }
+        .preview-tab.active { background: var(--primary); color: #fff; }
+        .preview-tab:hover:not(.active) { background: #eef2ff; color: var(--primary); }
+
+        /* View mode tabs */
+        .view-tabs {
+            display: flex;
+            gap: 0;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .view-tab {
+            padding: 6px 14px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            background: var(--bg);
+            border: none;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: all 0.15s;
+            border-right: 1px solid var(--border);
+        }
+
+        .view-tab:last-child { border-right: none; }
+        .view-tab.active { background: var(--text); color: #fff; }
+        .view-tab:hover:not(.active) { background: #f1f5f9; }
+
+        .preview-content {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        /* Rendered Markdown preview */
+        .preview-rendered {
+            padding: 24px;
+            font-size: 0.92rem;
+            line-height: 1.7;
+        }
+
+        .preview-rendered h1 { font-size: 1.6rem; margin: 16px 0 8px; padding-bottom: 6px; border-bottom: 2px solid var(--border); }
+        .preview-rendered h2 { font-size: 1.35rem; margin: 14px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+        .preview-rendered h3 { font-size: 1.15rem; margin: 12px 0 6px; }
+        .preview-rendered h4 { font-size: 1.05rem; margin: 10px 0 4px; }
+        .preview-rendered h5, .preview-rendered h6 { font-size: 0.95rem; margin: 8px 0 4px; }
+
+        .preview-rendered p { margin: 8px 0; }
+        .preview-rendered code {
+            background: #f1f5f9; padding: 2px 6px; border-radius: 4px;
+            font-family: 'Consolas', 'Monaco', monospace; font-size: 0.88em;
+        }
+        .preview-rendered pre {
+            background: #1e293b; color: #e2e8f0; padding: 16px;
+            border-radius: 8px; overflow-x: auto; margin: 12px 0;
+        }
+        .preview-rendered pre code { background: none; color: inherit; padding: 0; }
+        .preview-rendered blockquote {
+            border-left: 4px solid var(--primary); padding: 8px 16px;
+            margin: 12px 0; background: #f8fafc; color: var(--text-muted);
+        }
+        .preview-rendered table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+        .preview-rendered th, .preview-rendered td {
+            border: 1px solid var(--border); padding: 8px 12px; text-align: left;
+        }
+        .preview-rendered th { background: var(--bg); font-weight: 600; }
+        .preview-rendered ul, .preview-rendered ol { padding-left: 24px; margin: 8px 0; }
+        .preview-rendered li { margin: 4px 0; }
+        .preview-rendered img { max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; }
+        .preview-rendered hr { border: none; border-top: 2px solid var(--border); margin: 16px 0; }
+        .preview-rendered a { color: var(--primary); text-decoration: none; }
+        .preview-rendered a:hover { text-decoration: underline; }
+
+        /* Raw Markdown view */
+        .preview-raw {
+            display: none;
+            padding: 16px;
+            background: #1e293b;
+            color: #e2e8f0;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        /* Download bar inside preview */
+        .download-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 16px;
+            padding: 14px 18px;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 10px;
+        }
+
+        .download-info {
+            font-size: 0.9rem;
+            color: #166534;
+        }
+
+        .download-info .format-badge {
+            display: inline-block;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        .format-badge.md-badge { background: #dbeafe; color: #1e40af; }
+        .format-badge.zip-badge { background: #fef3c7; color: #92400e; }
+
+        .download-btn {
+            padding: 10px 24px;
+            background: var(--success);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .download-btn:hover {
+            background: #047857;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(5,150,105,0.3);
+        }
+
+        .copy-btn {
+            padding: 10px 18px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .copy-btn:hover {
+            background: var(--primary-hover);
+        }
+
+        /* ── Footer ── */
+        footer {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            padding: 20px 0;
+        }
+
+        footer a { color: var(--primary); text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📄 doc2md</h1>
+            <p>上传 Word (.docx) 文件，一键转换为 Markdown</p>
+        </header>
+
+        <div class="card">
+            <!-- Drop Zone -->
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-icon">📁</div>
+                <div class="drop-zone-text">
+                    拖拽文件到这里，或 <strong>点击选择文件</strong>
+                </div>
+                <div class="drop-zone-hint">支持 .docx 格式，最大 100 MB，可多选</div>
+                <input type="file" id="fileInput" multiple accept=".docx" hidden>
+            </div>
+
+            <!-- File List -->
+            <div class="file-list" id="fileList"></div>
+
+            <!-- Options -->
+            <div class="options-section" id="optionsSection" style="display:none;">
+                <h3>转换选项</h3>
+
+                <!-- Word Options -->
+                <div class="option-group" id="wordOptions">
+                    <div class="format-tags"><span class="format-tag docx">Word</span></div>
+                    <div class="option-row">
+                        <input type="checkbox" id="extractImages" checked>
+                        <span>提取嵌入图片到 images/ 目录</span>
+                    </div>
+                    <div class="option-row">
+                        <input type="checkbox" id="skipCover">
+                        <span>去掉第一页封面页</span>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <label>目录处理方式</label>
+                        <div class="hint" style="font-size:0.78rem; color:var(--text-muted); margin-bottom:6px;">选择如何处理文档中的目录页</div>
+                        <select id="tocMode" style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:0.9rem; outline:none; background:var(--card);">
+                            <option value="none">保留目录（默认）</option>
+                            <option value="toc_only">只去掉目录页</option>
+                            <option value="before_toc">去掉目录及之前的内容</option>
+                            <option value="before_toc_keep_abstract">去掉目录及之前的内容，保留摘要</option>
+                        </select>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <label>表格单元格内换行处理</label>
+                        <div class="hint" style="font-size:0.78rem; color:var(--text-muted); margin-bottom:6px;">单元格中的软换行在 Markdown 表格中的替换方式</div>
+                        <select id="tableCellBreak" style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:0.9rem; outline:none; background:var(--card);">
+                            <option value="space">空格拼接（默认，兼容所有渲染器）</option>
+                            <option value="br">换行标签 &lt;br&gt;（保留换行，部分渲染器可能不支持）</option>
+                        </select>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Convert Button -->
+            <button class="convert-btn" id="convertBtn" disabled>
+                开始转换
+            </button>
+
+            <!-- Progress -->
+            <div class="progress-bar" id="progressBar">
+                <div class="progress-track">
+                    <div class="progress-fill"></div>
+                </div>
+                <div class="progress-text">正在转换中，请稍候…</div>
+            </div>
+
+            <!-- Status Message -->
+            <div class="status-message" id="statusMessage"></div>
+        </div>
+
+        <!-- Preview Card -->
+        <div class="card preview-section" id="previewSection">
+            <div class="preview-header">
+                <h2>📝 转换结果预览</h2>
+                <!-- View mode toggle -->
+                <div class="view-tabs">
+                    <button class="view-tab active" data-view="rendered">渲染预览</button>
+                    <button class="view-tab" data-view="raw">Markdown 源码</button>
+                </div>
+            </div>
+
+            <!-- File tabs (for multi-file) -->
+            <div class="preview-tabs" id="previewTabs" style="display:none;"></div>
+
+            <!-- Content area -->
+            <div class="preview-content">
+                <div class="preview-rendered" id="previewRendered"></div>
+                <div class="preview-raw" id="previewRaw"></div>
+            </div>
+
+            <!-- Download bar -->
+            <div class="download-bar" id="downloadBar">
+                <div class="download-info" id="downloadInfo">
+                    ✅ 转换完成
+                    <span class="format-badge md-badge" id="formatBadge">.md</span>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button class="copy-btn" id="copyBtn" title="复制 Markdown 到剪贴板">📋 复制</button>
+                    <button class="download-btn" id="downloadBtn">⬇ 下载</button>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            doc2md v0.1.0 · 支持 .docx 格式
+        </footer>
+    </div>
+
+    <script>
+        const dropZone      = document.getElementById("dropZone");
+        const fileInput      = document.getElementById("fileInput");
+        const fileList       = document.getElementById("fileList");
+        const optSection     = document.getElementById("optionsSection");
+        const wordOpts       = document.getElementById("wordOptions");
+        const convertBtn     = document.getElementById("convertBtn");
+        const progressBar    = document.getElementById("progressBar");
+        const statusMsg      = document.getElementById("statusMessage");
+        const previewSection = document.getElementById("previewSection");
+        const previewTabs    = document.getElementById("previewTabs");
+        const previewRendered= document.getElementById("previewRendered");
+        const previewRaw     = document.getElementById("previewRaw");
+        const downloadBar    = document.getElementById("downloadBar");
+        const downloadInfo   = document.getElementById("downloadInfo");
+        const formatBadge    = document.getElementById("formatBadge");
+        const downloadBtn    = document.getElementById("downloadBtn");
+        const copyBtn        = document.getElementById("copyBtn");
+
+        let selectedFiles = [];
+        let currentResult = null;   // { id, files, needs_zip }
+        let activeFileIndex = 0;
+
+        // ── Drop Zone Events ──
+        dropZone.addEventListener("click", () => fileInput.click());
+
+        dropZone.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            dropZone.classList.add("drag-over");
+        });
+
+        dropZone.addEventListener("dragleave", () => {
+            dropZone.classList.remove("drag-over");
+        });
+
+        dropZone.addEventListener("drop", (e) => {
+            e.preventDefault();
+            dropZone.classList.remove("drag-over");
+            addFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener("change", () => {
+            addFiles(fileInput.files);
+            fileInput.value = "";
+        });
+
+        // ── File Management ──
+        function addFiles(fileListInput) {
+            const allowed = [".docx"];
+            for (const file of fileListInput) {
+                const ext = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+                if (!allowed.includes(ext)) {
+                    alert(`不支持的文件格式: ${ext}\n仅支持 .docx`);
+                    continue;
+                }
+                if (selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                    continue;
+                }
+                selectedFiles.push(file);
+            }
+            renderFileList();
+            updateOptions();
+            updateButton();
+        }
+
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            renderFileList();
+            updateOptions();
+            updateButton();
+        }
+
+        function renderFileList() {
+            fileList.innerHTML = "";
+            selectedFiles.forEach((file, idx) => {
+                const ext = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+                const icon = "📘";
+                const size = formatSize(file.size);
+
+                const div = document.createElement("div");
+                div.className = "file-item";
+                div.innerHTML = `
+                    <div class="file-info">
+                        <span class="file-icon">${icon}</span>
+                        <span class="file-name" title="${file.name}">${file.name}</span>
+                    </div>
+                    <span class="file-size">${size}</span>
+                    <button class="remove-btn" onclick="removeFile(${idx})" title="移除">✕</button>
+                `;
+                fileList.appendChild(div);
+            });
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + " B";
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+            return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+        }
+
+        // ── Options Visibility ──
+        function updateOptions() {
+            const hasDocx = selectedFiles.some(f => f.name.toLowerCase().endsWith(".docx"));
+
+            optSection.style.display = hasDocx ? "block" : "none";
+            wordOpts.classList.toggle("visible", hasDocx);
+        }
+
+        function updateButton() {
+            convertBtn.disabled = selectedFiles.length === 0;
+        }
+
+        // ── View Mode Toggle ──
+        document.querySelectorAll(".view-tab").forEach(tab => {
+            tab.addEventListener("click", () => {
+                document.querySelectorAll(".view-tab").forEach(t => t.classList.remove("active"));
+                tab.classList.add("active");
+
+                const mode = tab.dataset.view;
+                if (mode === "rendered") {
+                    previewRendered.style.display = "block";
+                    previewRaw.style.display = "none";
+                } else {
+                    previewRendered.style.display = "none";
+                    previewRaw.style.display = "block";
+                }
+            });
+        });
+
+        // ── Preview Helpers ──
+        function showPreview(result) {
+            currentResult = result;
+            activeFileIndex = 0;
+
+            // File tabs (only if multiple files)
+            if (result.files.length > 1) {
+                previewTabs.style.display = "flex";
+                previewTabs.innerHTML = "";
+                result.files.forEach((f, idx) => {
+                    const btn = document.createElement("button");
+                    btn.className = "preview-tab" + (idx === 0 ? " active" : "");
+                    btn.textContent = f.name;
+                    btn.addEventListener("click", () => switchFile(idx));
+                    previewTabs.appendChild(btn);
+                });
+            } else {
+                previewTabs.style.display = "none";
+            }
+
+            renderPreviewContent(0);
+
+            // Download info
+            if (result.needs_zip) {
+                formatBadge.textContent = ".zip";
+                formatBadge.className = "format-badge zip-badge";
+                downloadBtn.textContent = "⬇ 下载 ZIP";
+            } else {
+                formatBadge.textContent = ".md";
+                formatBadge.className = "format-badge md-badge";
+                downloadBtn.textContent = "⬇ 下载 .md";
+            }
+
+            let infoText = "✅ 转换完成";
+            if (result.needs_zip) {
+                infoText += "（含图片等资源，将打包为 ZIP）";
+            } else {
+                infoText += "（纯文本，直接下载 .md 文件）";
+            }
+            downloadInfo.innerHTML = infoText + " " + formatBadge.outerHTML;
+
+            previewSection.classList.add("visible");
+
+            // Scroll to preview
+            previewSection.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+
+        function switchFile(index) {
+            activeFileIndex = index;
+            document.querySelectorAll("#previewTabs .preview-tab").forEach((tab, i) => {
+                tab.classList.toggle("active", i === index);
+            });
+            renderPreviewContent(index);
+        }
+
+        function renderPreviewContent(index) {
+            const file = currentResult.files[index];
+            const mdContent = file.content;
+
+            // Rendered view
+            try {
+                previewRendered.innerHTML = marked.parse(mdContent);
+                // Rewrite image src to use the server file-serving route
+                const subfolder = file.name.replace(/\.md$/, '');
+                const baseUrl = `/files/${currentResult.id}/${subfolder}/`;
+                previewRendered.querySelectorAll('img').forEach(img => {
+                    const src = img.getAttribute('src');
+                    if (src && !src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('/')) {
+                        img.src = baseUrl + src;
+                    }
+                });
+            } catch (e) {
+                previewRendered.innerHTML = "<p style='color:red'>Markdown 渲染失败: " + e.message + "</p>";
+            }
+
+            // Raw view
+            previewRaw.textContent = mdContent;
+        }
+
+        // ── Copy to clipboard ──
+        copyBtn.addEventListener("click", async () => {
+            if (!currentResult || !currentResult.files[activeFileIndex]) return;
+            const mdContent = currentResult.files[activeFileIndex].content;
+            try {
+                await navigator.clipboard.writeText(mdContent);
+                const orig = copyBtn.textContent;
+                copyBtn.textContent = "✅ 已复制";
+                setTimeout(() => { copyBtn.textContent = orig; }, 1500);
+            } catch (e) {
+                // Fallback
+                const ta = document.createElement("textarea");
+                ta.value = mdContent;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand("copy");
+                ta.remove();
+                const orig = copyBtn.textContent;
+                copyBtn.textContent = "✅ 已复制";
+                setTimeout(() => { copyBtn.textContent = orig; }, 1500);
+            }
+        });
+
+        // ── Download ──
+        downloadBtn.addEventListener("click", () => {
+            if (!currentResult) return;
+            window.location.href = "/download/" + currentResult.id;
+        });
+
+        // ── Conversion ──
+        convertBtn.addEventListener("click", async () => {
+            if (selectedFiles.length === 0) return;
+
+            const formData = new FormData();
+            selectedFiles.forEach(f => formData.append("files", f));
+
+            formData.append("extract_images", document.getElementById("extractImages").checked);
+            formData.append("skip_cover", document.getElementById("skipCover").checked);
+            formData.append("toc_mode", document.getElementById("tocMode").value);
+            formData.append("table_cell_break", document.getElementById("tableCellBreak").value);
+
+            // UI state
+            convertBtn.disabled = true;
+            convertBtn.textContent = "转换中…";
+            progressBar.classList.add("visible");
+            statusMsg.className = "status-message";
+            statusMsg.style.display = "none";
+            previewSection.classList.remove("visible");
+
+            try {
+                const resp = await fetch("/convert", {
+                    method: "POST",
+                    body: formData,
+                });
+
+                const data = await resp.json();
+
+                if (!resp.ok) {
+                    let msg = data.error || "转换失败";
+                    if (data.details && data.details.length > 0) {
+                        msg += "\n" + data.details.map(d => d.file + ": " + d.error).join("\n");
+                    }
+                    throw new Error(msg);
+                }
+
+                // Show partial errors as warning
+                if (data.errors && data.errors.length > 0) {
+                    const errText = data.errors.map(e => e.file + ": " + e.error).join("; ");
+                    statusMsg.className = "status-message success";
+                    statusMsg.innerHTML = "⚠️ 部分文件转换失败: <small>" + errText + "</small>";
+                }
+
+                // Show preview
+                showPreview(data);
+
+            } catch (err) {
+                statusMsg.className = "status-message error";
+                statusMsg.textContent = "❌ " + err.message;
+            } finally {
+                convertBtn.disabled = false;
+                convertBtn.textContent = "开始转换";
+                progressBar.classList.remove("visible");
+            }
+        });
+    </script>
+</body>
+</html>
