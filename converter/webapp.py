@@ -1,3 +1,6 @@
+# Copyright (c) 2025 AmyLin <zhi_lin@qq.com>
+# Licensed under the MIT License. See LICENSE file for details.
+
 """Flask web service for doc2md converter.
 
 Provides a web UI for uploading .docx files, previewing the

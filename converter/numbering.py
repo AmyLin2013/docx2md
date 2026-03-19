@@ -1,3 +1,6 @@
+# Copyright (c) 2025 AmyLin <zhi_lin@qq.com>
+# Licensed under the MIT License. See LICENSE file for details.
+
 """Extract heading structure (outline levels + auto-numbering) from Word (.docx).
 
 Word stores:
