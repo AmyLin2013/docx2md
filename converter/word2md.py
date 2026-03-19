@@ -1,6 +1,3 @@
-# Copyright (c) 2025 AmyLin <zhi_lin@qq.com>
-# Licensed under the MIT License. See LICENSE file for details.
-
 """Word (.docx) to Markdown converter.
 
 Directly parses .docx XML to build Markdown. Heading levels come from the
@@ -27,6 +24,8 @@ from converter.numbering import (
 R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
 WP_NS = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+VML_NS = "urn:schemas-microsoft-com:vml"
+O_NS = "urn:schemas-microsoft-com:office:office"
 
 
 def _local_tag(element) -> str:
@@ -561,20 +560,30 @@ class _DocxConverter:
     def _runs_to_md(self, para) -> str:
         """Convert all inline children of a <w:p> to Markdown text."""
         parts: list[str] = []
+        anchored_images: list[str] = []
 
         for child in para:
             tag = _local_tag(child)
             if tag == "r":
-                parts.append(self._convert_run(child))
+                parts.append(self._convert_run(child, anchored_images))
             elif tag == "hyperlink":
                 parts.append(self._convert_hyperlink(child))
             elif tag in ("fldSimple", "smartTag", "sdt"):
                 # Wrapped structures — extract runs from inside
                 for r in child.iter(f"{{{WORD_NS}}}r"):
-                    parts.append(self._convert_run(r))
+                    parts.append(self._convert_run(r, anchored_images))
             # pPr, bookmarkStart, proofErr, etc. → skip
 
         text = "".join(parts)
+
+        # Floating/anchored images should be rendered after paragraph text,
+        # matching typical Word reading flow.
+        if anchored_images:
+            text = text.rstrip()
+            if text:
+                text += "\n\n" + "\n\n".join(anchored_images)
+            else:
+                text = "\n\n".join(anchored_images)
 
         # Merge adjacent bold+italic spans:
         # **text1****text2** → **text1text2**
@@ -584,7 +593,7 @@ class _DocxConverter:
 
         return text
 
-    def _convert_run(self, run) -> str:
+    def _convert_run(self, run, anchored_images: Optional[list[str]] = None) -> str:
         """Convert a <w:r> element to Markdown text with formatting."""
         rPr = run.find("w:rPr", NS)
         is_bold = False
@@ -606,7 +615,7 @@ class _DocxConverter:
 
         # Process children in document order
         text_parts: list[str] = []
-        image_md: Optional[str] = None
+        image_parts: list[str] = []
 
         for child in run:
             child_tag = _local_tag(child)
@@ -624,12 +633,44 @@ class _DocxConverter:
             elif child_tag == "drawing":
                 img = self._convert_drawing(child)
                 if img:
-                    image_md = img
+                    is_anchored = child.find(f".//{{{WP_NS}}}anchor") is not None
+                    if is_anchored and anchored_images is not None:
+                        anchored_images.append(img)
+                    else:
+                        image_parts.append(img)
+            elif child_tag == "pict":
+                img = self._convert_pict(child)
+                if img:
+                    if anchored_images is not None:
+                        anchored_images.append(img)
+                    else:
+                        image_parts.append(img)
+            elif child_tag == "AlternateContent":
+                # Some Word docs wrap drawing/pict inside mc:AlternateContent.
+                for nested in child.iter():
+                    nested_tag = _local_tag(nested)
+                    if nested_tag == "drawing":
+                        img = self._convert_drawing(nested)
+                        if img:
+                            is_anchored = nested.find(f".//{{{WP_NS}}}anchor") is not None
+                            if is_anchored and anchored_images is not None:
+                                anchored_images.append(img)
+                            else:
+                                image_parts.append(img)
+                            break
+                    elif nested_tag == "pict":
+                        img = self._convert_pict(nested)
+                        if img:
+                            if anchored_images is not None:
+                                anchored_images.append(img)
+                            else:
+                                image_parts.append(img)
+                            break
 
         # Images returned directly (no bold/italic wrapper)
-        if image_md:
+        if image_parts:
             prefix = "".join(text_parts)
-            return (prefix + image_md) if prefix.strip() else image_md
+            return (prefix + "".join(image_parts)) if prefix.strip() else "".join(image_parts)
 
         text = "".join(text_parts)
         if not text:
@@ -690,10 +731,39 @@ class _DocxConverter:
             return None
 
         embed = blip.get(f"{{{R_NS}}}embed")
-        if not embed or embed not in self.rels:
+        if not embed:
             return None
 
-        image_target = self.rels[embed]["target"]
+        alt = ""
+        docPr = drawing.find(f".//{{{WP_NS}}}docPr")
+        if docPr is not None:
+            alt = docPr.get("descr", "") or docPr.get("name", "")
+
+        return self._convert_image_by_rel_id(embed, alt)
+
+    def _convert_pict(self, pict) -> Optional[str]:
+        """Extract an image from a legacy <w:pict>/<v:imagedata> element."""
+        imagedata = pict.find(f".//{{{VML_NS}}}imagedata")
+        if imagedata is None:
+            return None
+
+        rid = imagedata.get(f"{{{R_NS}}}id")
+        if not rid:
+            return None
+
+        alt = (
+            imagedata.get("title", "")
+            or imagedata.get(f"{{{O_NS}}}title", "")
+            or imagedata.get("alt", "")
+        )
+        return self._convert_image_by_rel_id(rid, alt)
+
+    def _convert_image_by_rel_id(self, rel_id: str, alt: str = "") -> Optional[str]:
+        """Resolve relationship id and emit image markdown with extracted asset."""
+        if rel_id not in self.rels:
+            return None
+
+        image_target = self.rels[rel_id]["target"]
         if not image_target.startswith("word/"):
             image_target = f"word/{image_target}"
 
@@ -707,11 +777,6 @@ class _DocxConverter:
         filename = f"image_{self.image_index:03d}{ext}"
         self.image_index += 1
         (images_dir / filename).write_bytes(self.media[image_target])
-
-        alt = ""
-        docPr = drawing.find(f".//{{{WP_NS}}}docPr")
-        if docPr is not None:
-            alt = docPr.get("descr", "") or docPr.get("name", "")
 
         # Clean up Office AI-generated alt text (e.g. "文本, 信件\n\nAI 生成的内容可能不正确。")
         if alt:
