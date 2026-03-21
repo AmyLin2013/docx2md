@@ -1,78 +1,80 @@
-# doc2md — 告别复杂依赖，用纯 Python 将 Word 精准转为 Markdown ⚡
+[English](README.md) | [中文](README_zh.md)
 
-零第三方转换依赖，直接解析 `.docx` XML，将 Word 文档精准转为结构化 Markdown。提供命令行与 Web 双界面，开箱即用。
+# doc2md — Pure Python Word-to-Markdown Converter, No Complex Dependencies ⚡
 
-## 功能特性
+Zero third-party conversion dependencies. Directly parses `.docx` XML to produce well-structured Markdown. Offers both CLI and Web interfaces, ready to use out of the box.
 
-| 功能 | Word (.docx) |
-|------|:-----------:|
-| 标题识别 | ✅ 基于 outlineLvl 属性 |
-| 自动编号 | ✅ 基于 numPr 属性 |
-| 有序/无序列表 | ✅ |
-| 加粗/斜体 | ✅ |
-| 超链接 | ✅ |
-| 图片提取 | ✅ 保存到 images/ |
-| 表格 | ✅ 转为 Markdown 表格 |
-| 段落智能合并 | ✅ |
-| 去除封面页 | ✅ |
-| 目录处理 | ✅ 4 种模式 |
-| 摘要保留 | ✅ 论文场景 |
-| 批量转换 | ✅ |
-| Markdown 预览 | ✅ 渲染 + 源码 |
-| 智能下载 | ✅ .md 或 .zip |
+## Features
 
-## 安装
+| Feature | Word (.docx) |
+|---------|:-----------:|
+| Heading detection | ✅ Based on outlineLvl attribute |
+| Auto numbering | ✅ Based on numPr attribute |
+| Ordered/unordered lists | ✅ |
+| Bold/Italic | ✅ |
+| Hyperlinks | ✅ |
+| Image extraction | ✅ Saved to images/ |
+| Tables | ✅ Converted to Markdown tables |
+| Smart paragraph merging | ✅ |
+| Cover page removal | ✅ |
+| TOC handling | ✅ 4 modes |
+| Abstract preservation | ✅ For academic papers |
+| Batch conversion | ✅ |
+| Markdown preview | ✅ Rendered + source |
+| Smart download | ✅ .md or .zip |
+
+## Installation
 
 ```bash
-# 推荐使用虚拟环境
+# Recommended: use a virtual environment
 python -m venv .venv
 .venv\Scripts\activate      # Windows
 # source .venv/bin/activate  # Linux/Mac
 
-# 安装依赖
+# Install dependencies
 pip install -r requirements.txt
 
-# 可选: 安装为命令行工具
+# Optional: install as a CLI tool
 pip install -e .
 ```
 
-## 依赖说明
+## Dependencies
 
-| 库 | 用途 |
-|----|------|
-| [Flask](https://flask.palletsprojects.com/) | Web 服务框架 |
+| Library | Purpose |
+|---------|---------|
+| [Flask](https://flask.palletsprojects.com/) | Web framework |
 
-Word 转换仅使用 Python 标准库（`xml.etree.ElementTree` + `zipfile`），直接解析 .docx XML，无额外依赖。
+Word conversion uses only Python standard libraries (`xml.etree.ElementTree` + `zipfile`) to parse .docx XML directly — no extra dependencies needed.
 
-## 使用方法
+## Usage
 
-### 命令行
+### Command Line
 
 ```bash
-# 单文件转换
+# Single file conversion
 doc2md document.docx               # → document.md
 
-# 指定输出路径
+# Specify output path
 doc2md document.docx -o output.md
 
-# 批量转换
+# Batch conversion
 doc2md *.docx
 
-# 输出到终端（不保存文件）
+# Print to stdout (no file saved)
 doc2md document.docx --stdout
 
-# 不提取图片
+# Skip image extraction
 doc2md document.docx --no-images
 
-# 去掉封面页
+# Remove cover page
 doc2md document.docx --skip-cover
 
-# 目录处理选项
-doc2md document.docx --toc-mode toc_only              # 只去掉目录
-doc2md document.docx --toc-mode before_toc             # 去掉目录及之前内容
-doc2md paper.docx --toc-mode before_toc_keep_abstract   # 去掉目录及之前内容，保留摘要
+# TOC handling options
+doc2md document.docx --toc-mode toc_only              # Remove TOC only
+doc2md document.docx --toc-mode before_toc             # Remove TOC and everything before it
+doc2md paper.docx --toc-mode before_toc_keep_abstract   # Remove TOC and before, keep abstract
 
-# 组合使用
+# Combined usage
 doc2md paper.docx --skip-cover --toc-mode before_toc_keep_abstract --no-images
 ```
 
@@ -84,163 +86,164 @@ from converter.word2md import convert_word_to_markdown
 # Word → Markdown
 md = convert_word_to_markdown("input.docx", "output.md")
 
-# 去掉封面、去掉目录但保留摘要（论文场景）
+# Remove cover, remove TOC but keep abstract (academic paper scenario)
 md = convert_word_to_markdown(
     "paper.docx", "paper.md",
     skip_cover=True,
     toc_mode="before_toc_keep_abstract",
 )
 
-# 只移除目录页
+# Remove TOC page only
 md = convert_word_to_markdown("doc.docx", toc_mode="toc_only")
 
-# 仅获取字符串，不保存文件
+# Get string only, no file saved
 md = convert_word_to_markdown("input.docx")
 print(md)
 ```
 
-## Web 服务
+## Web Service
 
-### 启动服务
+### Starting the Server
 
 ```bash
-# 开发模式（使用默认的 uploads/ 和 converted/ 目录）
+# Development mode (uses default uploads/ and converted/ directories)
 python -m converter.webapp
 
-# 或使用 Flask CLI
+# Or use Flask CLI
 flask --app converter.webapp run --port 5000
 
-# 自定义临时文件目录
-set DOC2MD_UPLOAD_DIR=d:\my_uploads      # 自定义上传文件目录
-set DOC2MD_CONVERTED_DIR=d:\my_converted  # 自定义转换文件目录
+# Custom temporary file directories
+set DOC2MD_UPLOAD_DIR=d:\my_uploads      # Custom upload directory
+set DOC2MD_CONVERTED_DIR=d:\my_converted  # Custom converted file directory
 python -m converter.webapp
 ```
 
-启动后访问 http://localhost:5000 即可打开 Web 界面。
+Visit http://localhost:5000 after starting the server to open the Web interface.
 
-### Web 界面功能
+### Web Interface Features
 
-- **拖拽/点击上传** .docx 文件（支持多文件批量）
-- 根据文件格式自动显示对应的转换选项：
-  - **Word**: 是否提取图片、去除封面页、目录处理方式（4 种模式）
-- **Markdown 预览**：转换完成后直接在页面内预览，支持渲染视图和源码视图切换
-- **一键复制**：复制 Markdown 源码到剪贴板
-- **智能下载**：
-  - 单文件且无图片 → 直接下载 `.md` 文件
-  - 含图片或多文件 → 打包为 `.zip` 下载
+- **Drag & drop / click to upload** .docx files (supports multi-file batch upload)
+- Conversion options displayed based on file format:
+  - **Word**: Image extraction, cover page removal, TOC handling mode (4 modes)
+- **Markdown preview**: Preview directly in the browser after conversion, with rendered view and source view toggle
+- **One-click copy**: Copy Markdown source to clipboard
+- **Smart download**:
+  - Single file without images → direct `.md` download
+  - With images or multiple files → bundled as `.zip` download
 
-### API 接口
+### API Endpoints
 
 ```bash
-# POST /convert - 上传文件并转换，返回 JSON（含预览内容 + 下载 ID）
+# POST /convert - Upload and convert files, returns JSON (preview content + download ID)
 curl -X POST http://localhost:5000/convert \
   -F "files=@document.docx" \
   -F "extract_images=true" \
   -F "skip_cover=false" \
   -F "toc_mode=none"
-# 返回: { "id": "xxx", "files": [{"name": "document.md", "content": "..."}], "needs_zip": false }
+# Returns: { "id": "xxx", "files": [{"name": "document.md", "content": "..."}], "needs_zip": false }
 
-# GET /download/<id> - 下载转换结果（自动返回 .md 或 .zip）
+# GET /download/<id> - Download conversion result (auto-returns .md or .zip)
 curl http://localhost:5000/download/xxx -o result.md
 
-# POST /convert - Word 论文场景
+# POST /convert - Academic paper scenario
 curl -X POST http://localhost:5000/convert \
   -F "files=@paper.docx" \
   -F "skip_cover=true" \
   -F "toc_mode=before_toc_keep_abstract"
 
-# GET /config - 查看当前配置（文件存储位置、活跃任务数）
+# GET /config - View current configuration (file storage paths, active tasks)
 curl http://localhost:5000/config
-# 返回: { "uploads_dir": "...", "converted_dir": "...", "result_ttl_seconds": 600, "active_results": 2 }
+# Returns: { "uploads_dir": "...", "converted_dir": "...", "result_ttl_seconds": 600, "active_results": 2 }
 
-# POST /cleanup - 手动清理过期的转换结果和文件
+# POST /cleanup - Manually clean up expired conversion results and files
 curl -X POST http://localhost:5000/cleanup
-# 返回: { "status": "ok", "cleaned": 2, "active_results": 1 }
+# Returns: { "status": "ok", "cleaned": 2, "active_results": 1 }
 
-# GET /health - 健康检查
+# GET /health - Health check
 curl http://localhost:5000/health
 ```
 
-#### Word 参数说明
+#### Word Parameters
 
-| 参数 | 默认值 | 说明 |
-|------|-------|------|
-| `extract_images` | `true` | 是否提取嵌入图片 |
-| `skip_cover` | `false` | 是否去除第一页封面 |
-| `toc_mode` | `none` | 目录处理模式：`none` / `toc_only` / `before_toc` / `before_toc_keep_abstract` |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `extract_images` | `true` | Whether to extract embedded images |
+| `skip_cover` | `false` | Whether to remove the first cover page |
+| `toc_mode` | `none` | TOC handling mode: `none` / `toc_only` / `before_toc` / `before_toc_keep_abstract` |
 
-| toc_mode 值 | 说明 |
-|------------|------|
-| `none` | 保留所有内容 |
-| `toc_only` | 只移除目录页 |
-| `before_toc` | 移除目录及其之前的内容 |
-| `before_toc_keep_abstract` | 移除目录及之前内容，但保留中英文摘要 |
+| toc_mode Value | Description |
+|----------------|-------------|
+| `none` | Keep all content |
+| `toc_only` | Remove TOC page only |
+| `before_toc` | Remove TOC and everything before it |
+| `before_toc_keep_abstract` | Remove TOC and everything before it, but keep abstract |
 
-## 文件存储与清理
+## File Storage & Cleanup
 
-Web 服务运行时，上传和转换的文件自动保存在项目目录下：
+When the Web service is running, uploaded and converted files are automatically saved under the project directory:
 
-- **uploads/{session_id}/** — 用户上传的原始 .docx 文件
-- **converted/{session_id}/{filename}/** — 转换生成的 Markdown 和提取的图片
+- **uploads/{session_id}/** — Original .docx files uploaded by users
+- **converted/{session_id}/{filename}/** — Converted Markdown files and extracted images
 
-### 自动清理
+### Automatic Cleanup
 
-后台线程每 60 秒检查一次，自动清理 **超过 10 分钟** 的文件（可通过 `_RESULT_TTL` 配置）。
+A background thread checks every 60 seconds and automatically cleans up files **older than 10 minutes** (configurable via `_RESULT_TTL`).
 
-### 手动清理
+### Manual Cleanup
 
 ```bash
 curl -X POST http://localhost:5000/cleanup
 ```
 
-### 自定义存储路径
+### Custom Storage Paths
 
-通过环境变量可自定义文件存储位置，详见 [UPLOAD_STORAGE_GUIDE.md](UPLOAD_STORAGE_GUIDE.md)。
+You can customize file storage locations via environment variables. See [UPLOAD_STORAGE_GUIDE.md](UPLOAD_STORAGE_GUIDE.md) for details.
 
-## 项目结构
+## Project Structure
 
 ```
 doc2md/
-├── pyproject.toml              # 项目配置 & 依赖
-├── requirements.txt            # pip 依赖
-├── README.md
-├── UPLOAD_STORAGE_GUIDE.md     # 文件存储和清理策略说明
+├── pyproject.toml              # Project config & dependencies
+├── requirements.txt            # pip dependencies
+├── README.md                   # English documentation
+├── README_zh.md                # Chinese documentation
+├── UPLOAD_STORAGE_GUIDE.md     # File storage and cleanup guide
 ├── .gitignore
 ├── templates/
-│   └── index.html              # Web 前端页面（预览 + 下载）
+│   └── index.html              # Web frontend (preview + download)
 └── converter/
     ├── __init__.py
-    ├── cli.py                  # CLI 入口 (argparse)
-    ├── webapp.py               # Flask Web 服务
-    ├── word2md.py              # Word 转换（直接解析 .docx XML）
-    └── numbering.py            # Word 编号/样式/大纲级别解析
+    ├── cli.py                  # CLI entry point (argparse)
+    ├── webapp.py               # Flask Web service
+    ├── word2md.py              # Word converter (direct .docx XML parsing)
+    └── numbering.py            # Word numbering/style/outline level parser
 ```
 
-> 运行时会自动创建 `uploads/` 和 `converted/` 目录用于临时文件存储，已通过 `.gitignore` 排除。
+> The `uploads/` and `converted/` directories are created automatically at runtime for temporary file storage and are excluded via `.gitignore`.
 
-## 技术方案说明
+## Technical Details
 
-### Word (.docx) 转换流程
+### Word (.docx) Conversion Pipeline
 
 ```
-.docx (ZIP)  ──解压──▶  XML (document.xml, styles.xml, numbering.xml)
+.docx (ZIP)  ──unzip──▶  XML (document.xml, styles.xml, numbering.xml)
                               │
-                              ├─ outlineLvl → 标题级别 (H1–H6)
-                              ├─ numPr → 自动编号 ("第一章"、"1.1")
-                              ├─ rPr → 加粗/斜体/删除线
-                              ├─ hyperlink + rels → 超链接
-                              ├─ drawing + media → 图片
-                              └─ tbl → 表格
+                              ├─ outlineLvl → Heading level (H1–H6)
+                              ├─ numPr → Auto numbering ("Chapter 1", "1.1")
+                              ├─ rPr → Bold/Italic/Strikethrough
+                              ├─ hyperlink + rels → Hyperlinks
+                              ├─ drawing + media → Images
+                              └─ tbl → Tables
                               │
                               ▼
                           Markdown
 ```
 
-- 直接解析 .docx 的 XML 结构，不依赖 mammoth 或 markdownify
-- 标题级别来源于每个段落的 `outlineLvl` 属性（支持样式继承链 `basedOn`）
-- 自动编号来源于 `numPr`（numId + ilvl），通过 numbering.xml 解析编号格式
-- 支持中文编号（"第一章"、"一、"）、罗马数字、字母等格式
-- 封面/目录/摘要检测基于 XML 属性（分页符、TOC 样式/SDT/域代码、标题关键词）
+- Directly parses .docx XML structure without relying on mammoth or markdownify
+- Heading levels are derived from each paragraph's `outlineLvl` attribute (supports style inheritance via `basedOn`)
+- Auto numbering is derived from `numPr` (numId + ilvl), parsed through numbering.xml
+- Supports Chinese numbering ("第一章", "一、"), Roman numerals, letters, and more
+- Cover/TOC/abstract detection based on XML attributes (page breaks, TOC styles/SDT/field codes, heading keywords)
 
 ## License
 
