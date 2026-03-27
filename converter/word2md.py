@@ -591,6 +591,14 @@ class _DocxConverter:
         text = text.replace("******", "")   # bold+italic merge
         text = text.replace("****", "")     # bold merge
 
+        # Fix CommonMark right-flanking delimiter rule (spec §6.4):
+        # A closing ** is NOT right-flanking when preceded by Unicode punctuation
+        # (e.g. ：, ：, 。) and immediately followed by a non-ASCII non-whitespace
+        # character (e.g. CJK ideograph), causing marked.js to display ** literally.
+        # Solution: insert a space after closing ** in that position so the *preceding*
+        # punctuation + following space satisfies condition (b) of the right-flanking test.
+        text = re.sub(r'(?<=[^\s*])\*\*(?=[^\x00-\x7F])', '** ', text)
+
         return text
 
     def _convert_run(self, run, anchored_images: Optional[list[str]] = None) -> str:
