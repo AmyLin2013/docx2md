@@ -4,6 +4,10 @@
 
 零第三方转换依赖，直接解析 `.docx` XML，将 Word 文档精准转为结构化 Markdown。提供命令行与 Web 双界面，开箱即用。
 
+## 在线体验
+
+- **DOCX → Markdown：** [https://doc-tools.qihangsoftware.cn/docx2md](https://doc-tools.qihangsoftware.cn/docx2md)
+
 ## 功能特性
 
 | 功能 | Word (.docx) |

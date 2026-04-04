@@ -4,6 +4,10 @@
 
 Zero third-party conversion dependencies. Directly parses `.docx` XML to produce well-structured Markdown. Offers both CLI and Web interfaces, ready to use out of the box.
 
+## Live demo
+
+- **DOCX → Markdown:** [https://doc-tools.qihangsoftware.cn/docx2md](https://doc-tools.qihangsoftware.cn/docx2md)
+
 ## Features
 
 | Feature | Word (.docx) |
